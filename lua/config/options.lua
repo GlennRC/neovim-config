@@ -38,3 +38,10 @@ vim.opt.listchars = { tab = "» ", trail = "·", nbsp = "␣" }
 
 -- Persistent undo
 vim.opt.undofile = true
+
+-- Force alternate screen restore on exit (fixes WezTerm screen not clearing)
+vim.api.nvim_create_autocmd("VimLeave", {
+  callback = function()
+    io.write("\27[?1049l")
+  end,
+})
