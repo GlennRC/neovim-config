@@ -8,6 +8,7 @@ vim.g.have_nerd_font = false
 require("config.platform")
 require("config.options")
 require("config.keymaps")
+require("config.isrt")
 require("config.lazy")
 
 -- Remote-only integrations
