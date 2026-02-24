@@ -19,5 +19,13 @@ return {
 
     vim.keymap.set({ "n", "v" }, "<leader>y", osc52.copy_operator, { expr = true })
     vim.keymap.set("n", "<leader>yy", function() osc52.copy_register("0") end)
+    vim.keymap.set("n", "<leader>cf", function()
+      vim.fn.setreg("0", vim.fn.expand("%:t"))
+      osc52.copy_register("0")
+    end, { desc = "Copy filename to clipboard" })
+    vim.keymap.set("n", "<leader>cp", function()
+      vim.fn.setreg("0", vim.fn.expand("%:p"))
+      osc52.copy_register("0")
+    end, { desc = "Copy full path to clipboard" })
   end,
 }

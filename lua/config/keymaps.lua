@@ -13,6 +13,23 @@ vim.keymap.set("n", "<leader>m", function()
   print("mouse=" .. (vim.o.mouse == "" and "off" or vim.o.mouse))
 end, { desc = "Toggle mouse" })
 
+-- Toggle which-key
+vim.keymap.set("n", "<leader>tw", function()
+  local wk = require("which-key")
+  if wk.is_enabled() then
+    wk.disable()
+    print("which-key: off")
+  else
+    wk.enable()
+    print("which-key: on")
+  end
+end, { desc = "[T]oggle [W]hich-key" })
+
+-- Cycle markdown UI theme
+vim.keymap.set("n", "<leader>um", function()
+  require("config.markdown-themes").cycle()
+end, { desc = "Cycle markdown theme" })
+
 -- Highlight on yank
 vim.api.nvim_create_autocmd("TextYankPost", {
   desc = "Highlight when yanking text",

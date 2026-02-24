@@ -1,7 +1,9 @@
 -- Platform detection helpers
 local hostname = vim.fn.hostname()
 
-vim.g.is_remote = vim.env.SSH_CLIENT ~= nil or vim.env.SSH_TTY ~= nil
+vim.g.is_remote = vim.env.SSH_CLIENT ~= nil
+  or vim.env.SSH_TTY ~= nil
+  or vim.fn.hostname():match("hpnsw") ~= nil
 vim.g.is_macos = vim.fn.has("macunix") == 1
 vim.g.is_linux = vim.fn.has("unix") == 1 and not vim.g.is_macos
 
@@ -11,6 +13,8 @@ if vim.g.is_remote then
   if vim.fn.filereadable(venv_python) == 1 then
     vim.g.python3_host_prog = venv_python
   end
+
+  vim.opt.shadafile = "/ws/contrgle/xdg/state/nvim/shada/main.shada"
 end
 
 -- Disable unused providers
