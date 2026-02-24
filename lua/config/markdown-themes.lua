@@ -17,8 +17,8 @@ local tint = {
   green = 0x232e25, cyan = 0x1f2c2e, blue = 0x1f2738, purple = 0x281f32,
 }
 
-local theme_order = { "hybrid", "obsidian", "github" }
-M.current = "hybrid"
+local theme_order = { "github", "hybrid", "obsidian" }
+M.current = "github"
 
 local function set(group, val)
   vim.api.nvim_set_hl(0, group, val)
