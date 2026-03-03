@@ -76,3 +76,18 @@ end, { desc = "Lazygit" })
 vim.keymap.set("n", "<leader>gs", "<cmd>Telescope git_status<CR>", { desc = "Git status" })
 vim.keymap.set("n", "<leader>gc", "<cmd>Telescope git_commits<CR>", { desc = "Git commits" })
 vim.keymap.set("n", "<leader>gb", "<cmd>Telescope git_branches<CR>", { desc = "Git branches" })
+
+-- Change gitsigns diff base (e.g. HEAD~3, main, a commit SHA)
+vim.keymap.set("n", "<leader>gd", function()
+  vim.ui.input({ prompt = "Diff base (e.g. HEAD~3, main): " }, function(ref)
+    if not ref then return end
+    if ref == "" then
+      -- Reset to default (index)
+      require("gitsigns").change_base(nil, true)
+      print("Gitsigns: reset to index")
+    else
+      require("gitsigns").change_base(ref, true)
+      print("Gitsigns: diffing against " .. ref)
+    end
+  end)
+end, { desc = "Git diff base" })
