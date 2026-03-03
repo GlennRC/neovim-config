@@ -38,3 +38,12 @@ vim.api.nvim_create_autocmd("TextYankPost", {
     vim.highlight.on_yank()
   end,
 })
+
+-- Copilot CLI integration
+vim.keymap.set("v", "<leader>cs", function()
+  require("config.copilot-send").send_interactive()
+end, { desc = "Send to Copilot CLI" })
+
+vim.keymap.set("v", "<leader>cq", function()
+  require("config.copilot-send").quick_ask()
+end, { desc = "Quick ask Copilot CLI" })
