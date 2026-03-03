@@ -71,3 +71,8 @@ vim.keymap.set("n", "<leader>gg", function()
   })
   vim.cmd("startinsert")
 end, { desc = "Lazygit" })
+
+-- Git keymaps (Telescope)
+vim.keymap.set("n", "<leader>gs", "<cmd>Telescope git_status<CR>", { desc = "Git status" })
+vim.keymap.set("n", "<leader>gc", "<cmd>Telescope git_commits<CR>", { desc = "Git commits" })
+vim.keymap.set("n", "<leader>gb", "<cmd>Telescope git_branches<CR>", { desc = "Git branches" })
