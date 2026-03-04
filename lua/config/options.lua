@@ -22,6 +22,7 @@ vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
 -- UI
+vim.opt.wrap = false
 vim.opt.termguicolors = true
 vim.opt.signcolumn = "yes"
 vim.opt.updatetime = 250
@@ -38,6 +39,11 @@ vim.opt.listchars = { tab = "» ", trail = "·", nbsp = "␣" }
 
 -- Persistent undo
 vim.opt.undofile = true
+
+-- Folding (required by nvim-ufo)
+vim.opt.foldlevel = 99
+vim.opt.foldlevelstart = 99
+vim.opt.foldenable = true
 
 -- Force alternate screen restore on exit (fixes WezTerm screen not clearing)
 vim.api.nvim_create_autocmd("VimLeave", {

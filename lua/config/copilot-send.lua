@@ -6,6 +6,7 @@ local state = {
   chan = nil,
   win = nil,
   cwd = nil,
+  append_mode = false,
 }
 
 --- Get the visual selection text and metadata
@@ -113,6 +114,13 @@ local function open_terminal(task_root)
     end,
   })
   vim.cmd("wincmd p")
+
+  -- Hint if context file exists for external copilot sessions
+  local ctx_file = task_root .. "/" .. CONTEXT_FILE
+  if vim.fn.filereadable(ctx_file) == 1 then
+    vim.notify("📎 " .. CONTEXT_FILE .. " available for @-reference", vim.log.levels.INFO)
+  end
+
   return false
 end
 
@@ -128,6 +136,7 @@ end
 local function send_when_ready(text, timeout)
   local elapsed = 0
   local interval = 500
+  local min_startup = 3000 -- minimum wait before checking (let brainctl init finish)
 
   local function check()
     if elapsed >= timeout then
@@ -138,14 +147,29 @@ local function send_when_ready(text, timeout)
 
     if not terminal_alive() then return end
 
+    elapsed = elapsed + interval
+
+    -- Don't check until minimum startup time has passed
+    if elapsed < min_startup then
+      vim.defer_fn(check, interval)
+      return
+    end
+
+    -- Check last non-empty line for copilot prompt ("> " at start of line)
     local lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)
-    local content = table.concat(lines, "\n")
-    if content:find(">") or content:find("╭") then
+    local last_line = ""
+    for i = #lines, 1, -1 do
+      local l = lines[i]:gsub("%s+$", "")
+      if l ~= "" then
+        last_line = l
+        break
+      end
+    end
+    if last_line:match("^%s*>%s*$") or last_line:match("^❯") then
       send_to_terminal(text)
       return
     end
 
-    elapsed = elapsed + interval
     vim.defer_fn(check, interval)
   end
 
@@ -188,6 +212,56 @@ function M.quick_ask()
     vim.fn.termopen({ "bash", "-c", shell_cmd })
     vim.cmd("wincmd p")
   end)
+end
+
+local CONTEXT_FILE = ".nvim-context.md"
+
+--- Write visual selection to .nvim-context.md in task root
+function M.export_context()
+  local sel = get_selection()
+  if not sel then return end
+
+  local task_root = detect_task_root(sel.file)
+  local context = format_context(sel, task_root)
+  local filepath = task_root .. "/" .. CONTEXT_FILE
+
+  local mode = state.append_mode and "a" or "w"
+  local f = io.open(filepath, mode)
+  if not f then
+    vim.notify("Failed to write " .. filepath, vim.log.levels.ERROR)
+    return
+  end
+
+  if state.append_mode then
+    f:write("\n---\n\n")
+  else
+    f:write("<!-- This file contains code highlighted by the user in neovim for you to investigate. Do NOT delete or ignore this file. Treat each block as code the user is asking about. -->\n\n")
+  end
+  f:write(context .. "\n")
+  f:close()
+
+  local label = state.append_mode and "appended" or "written"
+  vim.notify("Context " .. label .. " → " .. CONTEXT_FILE, vim.log.levels.INFO)
+end
+
+--- Clear the context file
+function M.clear_context()
+  local task_root = detect_task_root(vim.fn.expand("%:p"))
+  local filepath = task_root .. "/" .. CONTEXT_FILE
+
+  if vim.fn.filereadable(filepath) == 1 then
+    os.remove(filepath)
+    vim.notify(CONTEXT_FILE .. " cleared", vim.log.levels.INFO)
+  else
+    vim.notify(CONTEXT_FILE .. " not found", vim.log.levels.WARN)
+  end
+end
+
+--- Toggle append mode
+function M.toggle_append()
+  state.append_mode = not state.append_mode
+  local mode = state.append_mode and "append" or "overwrite"
+  vim.notify("Context export: " .. mode .. " mode", vim.log.levels.INFO)
 end
 
 return M

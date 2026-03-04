@@ -12,5 +12,11 @@ return {
   },
   opts = {
     model = "claude-opus-4.6",
+    mappings = {
+      stop = {
+        normal = "<C-c>",
+        insert = "<C-c>",
+      },
+    },
   },
 }

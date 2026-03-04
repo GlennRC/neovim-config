@@ -18,9 +18,9 @@ return {
       -- Enable highlighting per filetype
       vim.api.nvim_create_autocmd("FileType", {
         pattern = {
-          "bash", "c", "css", "diff", "go", "html", "javascript", "json",
+          "bash", "c", "cpp", "css", "diff", "go", "html", "javascript", "json",
           "lua", "luadoc", "markdown", "markdown_inline", "python", "query",
-          "regex", "rust", "toml", "typescript", "vim", "vimdoc", "yaml",
+          "regex", "rst", "rust", "toml", "typescript", "vim", "vimdoc", "yaml",
         },
         callback = function() pcall(vim.treesitter.start) end,
       })
@@ -28,9 +28,9 @@ return {
       -- Legacy API (nvim 0.10.x)
       require("nvim-treesitter.configs").setup({
         ensure_installed = {
-          "bash", "c", "css", "diff", "go", "html", "javascript", "json",
+          "bash", "c", "cpp", "css", "diff", "go", "html", "javascript", "json",
           "lua", "luadoc", "markdown", "markdown_inline", "python", "query",
-          "regex", "rust", "toml", "typescript", "vim", "vimdoc", "yaml",
+          "regex", "rst", "rust", "toml", "typescript", "vim", "vimdoc", "yaml",
         },
         auto_install = true,
         highlight = {
