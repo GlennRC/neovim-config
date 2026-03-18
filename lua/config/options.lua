@@ -22,7 +22,10 @@ vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
 -- UI
-vim.opt.wrap = false
+vim.opt.wrap = true
+vim.opt.linebreak = true
+vim.opt.breakindent = true
+vim.opt.showbreak = "↪ "
 vim.opt.termguicolors = true
 vim.opt.signcolumn = "yes"
 vim.opt.updatetime = 250

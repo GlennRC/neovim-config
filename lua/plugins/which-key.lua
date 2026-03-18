@@ -18,6 +18,7 @@ return {
     spec = {
       { "<leader>s", group = "[S]earch" },
       { "<leader>t", group = "[T]oggle" },
+      { "<leader>c", group = "[C]opilot/Code", mode = { "n", "v" } },
       { "<leader>h", group = "Git [H]unk", mode = { "n", "v" } },
     },
   },

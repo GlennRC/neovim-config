@@ -5,6 +5,8 @@ return {
   config = function()
     local themes = require("config.markdown-themes")
     themes.get_highlights()
-    require("render-markdown").setup(themes.get_opts())
+    local opts = themes.get_opts()
+    opts.enabled = false
+    require("render-markdown").setup(opts)
   end,
 }

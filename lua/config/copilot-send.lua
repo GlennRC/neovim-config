@@ -7,18 +7,25 @@ local state = {
   win = nil,
   cwd = nil,
   append_mode = false,
+  tmux_pane = nil, -- cached target pane ID
 }
 
 --- Get the visual selection text and metadata
 local function get_selection()
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
-
+  -- Use current visual marks directly from the '< and '> positions
   local start_line = vim.fn.line("'<")
   local end_line = vim.fn.line("'>")
+
+  -- If marks are not set (both 0), no previous visual selection
+  if start_line == 0 or end_line == 0 then
+    vim.notify("No selection (marks not set)", vim.log.levels.WARN)
+    return nil
+  end
+
   local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
 
   if #lines == 0 then
-    vim.notify("No selection", vim.log.levels.WARN)
+    vim.notify("No selection (empty)", vim.log.levels.WARN)
     return nil
   end
 
@@ -215,6 +222,175 @@ function M.quick_ask()
 end
 
 local CONTEXT_FILE = ".nvim-context.md"
+
+--- Check if running inside tmux
+local function in_tmux()
+  return vim.env.TMUX ~= nil and vim.env.TMUX ~= ""
+end
+
+--- Find a tmux pane running copilot CLI, preferring one in the task root
+local function find_copilot_pane(task_root)
+  if state.tmux_pane then return state.tmux_pane end
+  local result = vim.fn.systemlist("tmux list-panes -a -F '#{pane_id} #{pane_current_path} #{pane_current_command}' 2>/dev/null")
+  local candidates = {}
+  for _, line in ipairs(result) do
+    local pane_id, pane_path, cmd = line:match("^(%S+)%s+(%S+)%s+(.+)$")
+    if cmd and (cmd:match("ghcs") or cmd:match("copilot") or cmd:match("node")) then
+      table.insert(candidates, { id = pane_id, path = pane_path, cmd = cmd })
+    end
+  end
+  if #candidates == 0 then return nil end
+  -- Prefer pane whose cwd matches the task root
+  if task_root then
+    for _, c in ipairs(candidates) do
+      if c.path and c.path:find(task_root, 1, true) then
+        return c.id
+      end
+    end
+  end
+  -- If no path match, prefer ghcs/copilot over generic node
+  for _, c in ipairs(candidates) do
+    if c.cmd:match("ghcs") or c.cmd:match("copilot") then
+      return c.id
+    end
+  end
+  return candidates[1].id
+end
+
+--- Send text to a tmux pane via load-buffer + paste-buffer.
+--- If send_enter is true, follows up with a real Enter keypress.
+local function tmux_send(text, target, task_root, send_enter)
+  if not in_tmux() then
+    vim.notify("Not in a tmux session", vim.log.levels.ERROR)
+    return false
+  end
+  target = target or find_copilot_pane(task_root) or "!"
+  local tmpfile = os.tmpname()
+  local f = io.open(tmpfile, "w")
+  if not f then
+    vim.notify("Failed to create temp file", vim.log.levels.ERROR)
+    return false
+  end
+  f:write(text)
+  f:close()
+  local escaped_tmp = vim.fn.shellescape(tmpfile)
+  local escaped_target = vim.fn.shellescape(target)
+  vim.fn.system(string.format("tmux load-buffer %s", escaped_tmp))
+  vim.fn.system(string.format("tmux paste-buffer -t %s", escaped_target))
+  vim.fn.system(string.format("rm -f %s", escaped_tmp))
+  if send_enter then
+    vim.fn.system(string.format("tmux send-keys -t %s C-s", escaped_target))
+  end
+  if vim.v.shell_error ~= 0 then
+    vim.notify("tmux send failed (target: " .. target .. ")", vim.log.levels.ERROR)
+    return false
+  end
+  return true
+end
+
+--- Send visual selection to a tmux pane running copilot CLI
+function M.send_to_tmux()
+  local sel = get_selection()
+  if not sel then return end
+  local task_root = detect_task_root(sel.file)
+  local context = format_context(sel, task_root)
+  if tmux_send(context .. "\n", nil, task_root) then
+    vim.notify("Sent to tmux pane", vim.log.levels.INFO)
+  end
+end
+
+--- Send visual selection + prompt to a tmux pane, then press Enter.
+--- Writes code context to .nvim-context.md, sends only the prompt as a single line.
+function M.send_to_tmux_prompted()
+  local sel = get_selection()
+  if not sel then
+    vim.notify("No selection", vim.log.levels.WARN)
+    return
+  end
+  local task_root = detect_task_root(sel.file)
+
+  vim.ui.input({ prompt = "Prompt for Copilot: " }, function(prompt)
+    if not prompt or prompt == "" then
+      vim.notify("Cancelled (no prompt)", vim.log.levels.INFO)
+      return
+    end
+
+    -- Write code context to file so copilot can read it
+    local rel_file = make_relative(sel.file, task_root)
+    local context_parts = {}
+    table.insert(context_parts, string.format("File: %s (lines %d-%d)", rel_file, sel.start_line, sel.end_line))
+    table.insert(context_parts, "```" .. sel.ft)
+    for _, line in ipairs(sel.lines) do
+      table.insert(context_parts, line)
+    end
+    table.insert(context_parts, "```")
+    local filepath = task_root .. "/" .. CONTEXT_FILE
+    local f = io.open(filepath, "w")
+    if f then
+      f:write("<!-- This file contains code highlighted by the user in neovim for you to investigate. Do NOT delete or ignore this file. Treat each block as code the user is asking about. -->\n\n")
+      f:write(table.concat(context_parts, "\n") .. "\n")
+      f:close()
+    end
+
+    -- Find target pane
+    local target = find_copilot_pane(task_root) or "!"
+    vim.notify("Target pane: " .. target .. " | task: " .. task_root, vim.log.levels.INFO)
+
+    -- Send just the prompt as single-line text + Enter via send-keys
+    local escaped_target = vim.fn.shellescape(target)
+    local escaped_prompt = vim.fn.shellescape(prompt)
+    local cmd1 = string.format("tmux send-keys -t %s -l %s", escaped_target, escaped_prompt)
+    local cmd2 = string.format("tmux send-keys -t %s Enter", escaped_target)
+    local out1 = vim.fn.system(cmd1)
+    local err1 = vim.v.shell_error
+    local out2 = vim.fn.system(cmd2)
+    local err2 = vim.v.shell_error
+    if err1 ~= 0 or err2 ~= 0 then
+      vim.notify(string.format("tmux failed: cmd1=%d cmd2=%d | %s | %s", err1, err2, out1, out2), vim.log.levels.ERROR)
+    else
+      vim.notify("Sent: " .. prompt, vim.log.levels.INFO)
+    end
+  end)
+end
+
+--- Send pre-captured selection to tmux copilot pane and switch focus there.
+function M._send_to_copilot(lines, start_line, end_line, file, ft)
+  if file == "" then file = "[unsaved]" end
+  local task_root = detect_task_root(file)
+
+  -- Build code context block
+  local rel_file = make_relative(file, task_root)
+  local parts = {}
+  table.insert(parts, string.format("File: %s (lines %d-%d)", rel_file, start_line, end_line))
+  table.insert(parts, "```" .. ft)
+  for _, line in ipairs(lines) do
+    table.insert(parts, line)
+  end
+  table.insert(parts, "```")
+  local text = table.concat(parts, "\n")
+
+  -- Paste into tmux copilot pane
+  local target = find_copilot_pane(task_root) or "!"
+  if not tmux_send(text, target, task_root) then return end
+
+  -- Switch focus to the copilot pane so user can type their prompt
+  local escaped_target = vim.fn.shellescape(target)
+  vim.fn.system(string.format("tmux select-pane -t %s", escaped_target))
+
+  vim.notify("Sent → " .. target, vim.log.levels.INFO)
+end
+
+--- Set tmux target pane manually
+function M.set_tmux_pane(pane_id)
+  state.tmux_pane = pane_id
+  vim.notify("tmux target: " .. (pane_id or "auto"), vim.log.levels.INFO)
+end
+
+--- Reset tmux target pane to auto-detect
+function M.reset_tmux_pane()
+  state.tmux_pane = nil
+  vim.notify("tmux target: auto-detect", vim.log.levels.INFO)
+end
 
 --- Write visual selection to .nvim-context.md in task root
 function M.export_context()
